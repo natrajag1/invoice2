@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Invoice Generator</title>
-    <!-- Include jsPDF library via CDN -->
+    <!-- Include jsPDF and jspdf-autotable libraries via CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.3/jspdf.plugin.autotable.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -115,6 +116,14 @@
             background-color: #3a5ecc;
         }
 
+        .btn-danger {
+            background-color: #dc3545;
+        }
+
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+
         .btn-secondary {
             background-color: #6c757d;
         }
@@ -162,6 +171,11 @@
         }
 
         .total-amount {
+            color: #4169E1;
+            font-size: 16px;
+        }
+
+        .gst-amount-total {
             color: #4169E1;
             font-size: 16px;
         }
@@ -331,6 +345,7 @@
             <button class="btn" id="addItemBtn">+ Add Item</button>
             
             <div class="total-row">
+                <span style="margin-right: 20px;">Total GST: <span class="gst-amount-total" id="totalGSTAmount">₹0.00</span></span>
                 Total: <span class="total-amount" id="totalAmount">₹0.00</span>
             </div>
             <div class="amount-words" id="amountInWords">Zero Rupees Only</div>
@@ -387,6 +402,9 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // Global variable to store the uploaded logo
+            let uploadedLogo = null;
+
             // Set default dates
             const today = new Date();
             const formattedDate = today.toISOString().substr(0, 10);
@@ -395,9 +413,21 @@
             dueDate.setDate(today.getDate() + 30);
             document.getElementById('dueDate').value = dueDate.toISOString().substr(0, 10);
 
-            // Logo upload button
+            // Logo upload functionality
             document.getElementById('uploadLogoBtn').addEventListener('click', function() {
                 document.getElementById('logoInput').click();
+            });
+
+            document.getElementById('logoInput').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        uploadedLogo = event.target.result;
+                        document.getElementById('uploadLogoBtn').textContent = 'Remove Logo';
+                    };
+                    reader.readAsDataURL(file);
+                }
             });
 
             // Add item button
@@ -445,122 +475,136 @@
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
 
+                    // Add logo if uploaded
+                    let yPosition = 10;
+                    if (uploadedLogo) {
+                        try {
+                            doc.addImage(uploadedLogo, 'PNG', 10, yPosition, 40, 20);
+                            yPosition += 25;
+                        } catch (error) {
+                            console.error('Error adding logo to PDF:', error);
+                        }
+                    }
+
                     // Invoice Header
-                    doc.setFontSize(18);
-                    doc.text("Invoice", 20, 20);
+                    doc.setFontSize(16);
+                    doc.text(`#INVOICE`, 10, yPosition);
+                    yPosition += 10;
 
                     // Invoice Details
-                    doc.setFontSize(12);
-                    let yPosition = 30;
-                    doc.text(`Invoice Number: ${document.getElementById('invoiceNumber').value}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Invoice Date: ${document.getElementById('invoiceDate').value}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Due Date: ${document.getElementById('dueDate').value}`, 20, yPosition);
+                    doc.setFontSize(10);
+                    doc.text(`Invoice Number: ${document.getElementById('invoiceNumber').value}`, 10, yPosition);
+                    doc.text(`Issue Date: ${document.getElementById('invoiceDate').value}`, 150, yPosition, { align: 'right' });
+                    yPosition += 5;
+                    doc.text(`Due Date: ${document.getElementById('dueDate').value}`, 150, yPosition, { align: 'right' });
                     yPosition += 10;
 
                     // Sender and Recipient Details
-                    doc.setFontSize(14);
-                    yPosition += 10;
-                    doc.text("From:", 20, yPosition);
                     doc.setFontSize(12);
-                    yPosition += 10;
+                    doc.text("From:", 10, yPosition);
+                    doc.text("To:", 110, yPosition);
+                    doc.setFontSize(10);
+                    yPosition += 5;
+
                     const senderName = document.getElementById('senderName').value || "-";
-                    const senderAddress = doc.splitTextToSize(document.getElementById('senderAddress').value || "-", 170);
-                    doc.text(senderName, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(senderAddress, 20, yPosition);
-                    yPosition += (senderAddress.length * 10);
-                    doc.text(`Phone: ${document.getElementById('senderPhone').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Email: ${document.getElementById('senderEmail').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-
-                    doc.setFontSize(14);
-                    yPosition += 10;
-                    doc.text("To:", 20, yPosition);
-                    doc.setFontSize(12);
-                    yPosition += 10;
+                    const senderAddress = doc.splitTextToSize(document.getElementById('senderAddress').value || "-", 90);
                     const recipientName = document.getElementById('recipientName').value || "-";
-                    const recipientAddress = doc.splitTextToSize(document.getElementById('recipientAddress').value || "-", 170);
-                    doc.text(recipientName, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(recipientAddress, 20, yPosition);
-                    yPosition += (recipientAddress.length * 10);
-                    doc.text(`Phone: ${document.getElementById('recipientPhone').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Email: ${document.getElementById('recipientEmail').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
+                    const recipientAddress = doc.splitTextToSize(document.getElementById('recipientAddress').value || "-", 90);
 
-                    // Items Table
-                    yPosition += 10;
-                    doc.setFontSize(14);
-                    doc.text("Items:", 20, yPosition);
-                    yPosition += 10;
-
-                    doc.setFontSize(12);
-                    doc.text("Sl No.", 20, yPosition);
-                    doc.text("Description", 40, yPosition);
-                    doc.text("Qty", 100, yPosition);
-                    doc.text("Price", 120, yPosition);
-                    doc.text("GST %", 140, yPosition);
-                    doc.text("GST Amt", 160, yPosition);
-                    doc.text("Amount", 180, yPosition);
-                    yPosition += 5;
-                    doc.line(20, yPosition, 190, yPosition);
+                    doc.text(senderName, 10, yPosition);
+                    doc.text(recipientName, 110, yPosition);
                     yPosition += 5;
 
-                    const rows = document.querySelectorAll('#itemsTable tbody tr');
-                    rows.forEach((row, index) => {
-                        const description = row.cells[1].querySelector('input').value || "-";
-                        const quantity = row.cells[3].querySelector('input').value;
-                        const price = row.cells[4].querySelector('input').value;
-                        const gstPercent = row.cells[5].querySelector('input').value;
-                        const gstAmount = row.cells[6].querySelector('input').value;
-                        const amount = row.cells[7].querySelector('input').value;
+                    let senderHeight = senderAddress.length * 5;
+                    let recipientHeight = recipientAddress.length * 5;
+                    let maxHeight = Math.max(senderHeight, recipientHeight);
 
-                        doc.text(`${index + 1}`, 20, yPosition);
-                        const splitDescription = doc.splitTextToSize(description, 50);
-                        doc.text(splitDescription, 40, yPosition);
-                        doc.text(quantity, 100, yPosition);
-                        doc.text(price, 120, yPosition);
-                        doc.text(gstPercent, 140, yPosition);
-                        doc.text(gstAmount, 160, yPosition);
-                        doc.text(amount, 180, yPosition);
-                        yPosition += (splitDescription.length * 10);
+                    doc.text(senderAddress, 10, yPosition);
+                    doc.text(recipientAddress, 110, yPosition);
+                    yPosition += maxHeight;
+
+                    doc.text(`Phone: ${document.getElementById('senderPhone').value || "-"}`, 10, yPosition);
+                    doc.text(`Phone: ${document.getElementById('recipientPhone').value || "-"}`, 110, yPosition);
+                    yPosition += 5;
+
+                    doc.text(`Email: ${document.getElementById('senderEmail').value || "-"}`, 10, yPosition);
+                    doc.text(`Email: ${document.getElementById('recipientEmail').value || "-"}`, 110, yPosition);
+                    yPosition += 5;
+
+                    doc.text(`GST No: ${document.getElementById('senderGST').value || "-"}`, 10, yPosition);
+                    doc.text(`GST No: ${document.getElementById('recipientGST').value || "-"}`, 110, yPosition);
+                    yPosition += 10;
+
+                    // Items Table using jspdf-autotable
+                    const rows = [];
+                    document.querySelectorAll('#itemsTable tbody tr').forEach(row => {
+                        rows.push([
+                            row.cells[0].textContent,
+                            row.cells[1].querySelector('input').value || "-",
+                            row.cells[2].querySelector('input').value || "-",
+                            row.cells[3].querySelector('input').value,
+                            row.cells[4].querySelector('input').value,
+                            row.cells[5].querySelector('input').value,
+                            row.cells[6].querySelector('input').value,
+                            row.cells[7].querySelector('input').value
+                        ]);
                     });
 
-                    // Total
+                    doc.autoTable({
+                        startY: yPosition,
+                        head: [['Sl No.', 'Description', 'HSN Code', 'Quantity', 'Price', 'GST %', 'GST Amt', 'Amount']],
+                        body: rows,
+                        theme: 'striped',
+                        styles: { fontSize: 8, cellPadding: 2 },
+                        headStyles: { fillColor: [65, 105, 225] },
+                        columnStyles: {
+                            0: { cellWidth: 15 },
+                            1: { cellWidth: 40 },
+                            2: { cellWidth: 25 },
+                            3: { cellWidth: 20 },
+                            4: { cellWidth: 20 },
+                            5: { cellWidth: 20 },
+                            6: { cellWidth: 20 },
+                            7: { cellWidth: 20 }
+                        }
+                    });
+
+                    yPosition = doc.lastAutoTable.finalY + 10;
+
+                    // Total and GST
+                    doc.setFontSize(10);
+                    doc.text(`Total GST: ${document.getElementById('totalGSTAmount').textContent}`, 150, yPosition, { align: 'right' });
+                    yPosition += 5;
+                    doc.text(`Grand Total: ${document.getElementById('totalAmount').textContent}`, 150, yPosition, { align: 'right' });
+                    yPosition += 5;
+                    doc.text(`${document.getElementById('amountInWords').textContent}`, 150, yPosition, { align: 'right' });
                     yPosition += 10;
-                    doc.setFontSize(14);
-                    doc.text(`Total: ${document.getElementById('totalAmount').textContent}`, 160, yPosition);
 
                     // Banking Details
-                    yPosition += 20;
-                    doc.setFontSize(14);
-                    doc.text("Banking Details:", 20, yPosition);
                     doc.setFontSize(12);
+                    doc.text("Banking Details:", 10, yPosition);
+                    doc.setFontSize(10);
+                    yPosition += 5;
+                    doc.text(`Bank Name: ${document.getElementById('bankName').value || "-"}`, 10, yPosition);
+                    yPosition += 5;
+                    doc.text(`Account Number: ${document.getElementById('accountNumber').value || "-"}`, 10, yPosition);
+                    yPosition += 5;
+                    doc.text(`Account Holder: ${document.getElementById('accountHolderName').value || "-"}`, 10, yPosition);
+                    yPosition += 5;
+                    doc.text(`IFSC Code: ${document.getElementById('ifscCode').value || "-"}`, 10, yPosition);
+                    yPosition += 5;
+                    doc.text(`Branch: ${document.getElementById('branchDetails').value || "-"}`, 10, yPosition);
+                    yPosition += 5;
+                    doc.text(`UPI ID: ${document.getElementById('upiId').value || "-"}`, 10, yPosition);
                     yPosition += 10;
-                    doc.text(`Bank Name: ${document.getElementById('bankName').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Account Number: ${document.getElementById('accountNumber').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Account Holder: ${document.getElementById('accountHolderName').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`IFSC Code: ${document.getElementById('ifscCode').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`Branch: ${document.getElementById('branchDetails').value || "-"}`, 20, yPosition);
-                    yPosition += 10;
-                    doc.text(`UPI ID: ${document.getElementById('upiId').value || "-"}`, 20, yPosition);
 
                     // Additional Notes
-                    yPosition += 20;
-                    doc.setFontSize(14);
-                    doc.text("Additional Notes:", 20, yPosition);
                     doc.setFontSize(12);
-                    yPosition += 10;
-                    const notes = doc.splitTextToSize(document.getElementById('additionalNotes').value || "-", 170);
-                    doc.text(notes, 20, yPosition);
+                    doc.text("Notes:", 10, yPosition);
+                    doc.setFontSize(10);
+                    yPosition += 5;
+                    const notes = doc.splitTextToSize(document.getElementById('additionalNotes').value || "N/A", 180);
+                    doc.text(notes, 10, yPosition);
 
                     // Save the PDF
                     doc.save('invoice.pdf');
@@ -617,6 +661,7 @@
                     totalGst += gstAmount;
                 });
                 const totalAmount = subtotal + totalGst;
+                document.getElementById('totalGSTAmount').textContent = currency + totalGst.toFixed(2);
                 document.getElementById('totalAmount').textContent = currency + totalAmount.toFixed(2);
                 document.getElementById('amountInWords').textContent = convertNumberToWords(totalAmount);
             }
